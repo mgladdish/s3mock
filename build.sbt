@@ -20,17 +20,26 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % "test",
   "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
   "com.github.pathikrit" %% "better-files" % "2.17.1",
-  "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
+  "org.slf4j" % "slf4j-simple" % "1.8.0-beta1", // To send logging to standard out, so it can appear in the container's log
   "com.amazonaws" % "aws-java-sdk-s3" % "1.11.224",
   "org.scalatest" %% "scalatest" % "3.0.4" % "test",
   "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-  "org.iq80.leveldb" % "leveldb" % "0.9",
+  "org.iq80.leveldb" % "leveldb" % "0.10", // See https://github.com/findify/s3mock/issues/83
   "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "0.14" % "test"
 )
 
 parallelExecution in Test := false
 
 publishMavenStyle := true
+
+// Fixes duplicate error on building docker image, caused by adding the slf4j-simple dependency above
+assemblyMergeStrategy in assembly := {
+  case "module-info.class" => MergeStrategy.discard
+  case x =>
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}
 
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
@@ -59,14 +68,14 @@ mainClass in assembly := Some("io.findify.s3mock.Main")
 test in assembly := {}
 
 dockerfile in docker := new Dockerfile {
-  from("openjdk:9.0.1-11-jre-slim")
+  from("openjdk:8-alpine") // see https://github.com/findify/s3mock/issues/83
   expose(8001)
   add(assembly.value, "/app/s3mock.jar")
-  entryPoint("java", "-Xmx128m", "-jar", "/app/s3mock.jar")
+  entryPoint("sh", "-c", "java -Xmx128m $JAVA_ARGS -jar /app/s3mock.jar")
 }
 imageNames in docker := Seq(
-  ImageName(s"findify/s3mock:${version.value.replaceAll("\\+", "_")}"),
-  ImageName(s"findify/s3mock:latest")
+  ImageName(s"uxforms/s3mock:${version.value.replaceAll("\\+", "_")}"),
+  ImageName(s"uxforms/s3mock:latest")
 )
 
 /*enablePlugins(JavaAppPackaging)

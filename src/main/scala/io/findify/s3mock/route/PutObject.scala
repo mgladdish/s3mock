@@ -51,16 +51,22 @@ case class PutObject(implicit provider:Provider, mat:Materializer) extends LazyL
           val metadata = populateObjectMetadata(request, bytes)
           Try(provider.putObject(bucket, path, bytes, metadata)) match {
             case Success(()) => HttpResponse(StatusCodes.OK)
-            case Failure(e: NoSuchBucketException) =>
+            case Failure(e: NoSuchBucketException) => {
+              println(s"FAILURE - NoSuchBucket: $e")
+              e.printStackTrace()
               HttpResponse(
                 StatusCodes.NotFound,
                 entity = e.toXML.toString()
               )
-            case Failure(t) =>
+            }
+            case Failure(t) => {
+              println(s"FAILURE: ${t}")
+              t.printStackTrace()
               HttpResponse(
                 StatusCodes.InternalServerError,
                 entity = InternalErrorException(t).toXML.toString()
               )
+            }
           }
         }).runWith(Sink.head[HttpResponse])
       result
