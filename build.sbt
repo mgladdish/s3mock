@@ -1,3 +1,5 @@
+import com.amazonaws.regions.RegionUtils
+
 name := "s3mock"
 
 version := "0.2.4"
@@ -62,7 +64,8 @@ pomExtra := (
       </developer>
     </developers>)
 
-enablePlugins(DockerPlugin)
+enablePlugins(DockerPlugin, EcrPlugin)
+
 assemblyJarName in assembly := "s3mock.jar"
 mainClass in assembly := Some("io.findify.s3mock.Main")
 test in assembly := {}
@@ -73,10 +76,23 @@ dockerfile in docker := new Dockerfile {
   add(assembly.value, "/app/s3mock.jar")
   entryPoint("sh", "-c", "java -Xmx128m $JAVA_ARGS -jar /app/s3mock.jar")
 }
+
 imageNames in docker := Seq(
   ImageName(s"uxforms/s3mock:${version.value.replaceAll("\\+", "_")}"),
   ImageName(s"uxforms/s3mock:latest")
 )
+
+region in Ecr := RegionUtils.getRegion("eu-west-2")
+
+repositoryName in Ecr := name.value
+
+localDockerImage in Ecr := s"uxforms/${name.value}" + ":" + version.value
+
+repositoryTags in Ecr := Seq(version.value)
+
+login in Ecr := ((login in Ecr) dependsOn (createRepository in Ecr)).value
+
+push in Ecr := ((push in Ecr) dependsOn (docker in docker, login in Ecr)).value
 
 /*enablePlugins(JavaAppPackaging)
 
